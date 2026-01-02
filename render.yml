@@ -1,7 +1,7 @@
 services:
   - type: web
-    name: probable-giggle
+    name: AQUA_MUSIC_BOT
     env: python
-    pythonVersion: 3.11
-    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
-    startCommand: python main.py
+    pythonVersion: "3.11"
+    buildCommand: "pip install --upgrade pip && pip install -r requirements.txt"
+    startCommand: "python main.py"
