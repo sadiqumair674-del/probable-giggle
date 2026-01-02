@@ -1,22 +1,40 @@
 import os
+import json
+from io import BytesIO
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from pytgcalls import PyTgCalls
 from pytgcalls.types.input_stream import AudioPiped
-from pytgcalls.exceptions import NoActiveGroupCall
 import yt_dlp
 import qrcode
-from io import BytesIO
+import psycopg2
 
 # ------------------ ENVIRONMENT ------------------
 API_ID = int(os.environ.get("API_ID"))
-API_HASH = os.environ.get("API_HASH"))
-BOT_TOKEN = os.environ.get("BOT_TOKEN"))
+API_HASH = os.environ.get("API_HASH")
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
 OWNER_ID = int(os.environ.get("OWNER_ID"))
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
+# ------------------ DATABASE CONNECTION ------------------
+conn = psycopg2.connect(DATABASE_URL)
+cursor = conn.cursor()
 
 # ------------------ CLIENT INIT ------------------
 app = Client("AQUA_MUSIC_BOT", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 vc = PyTgCalls(app)
+
+# ------------------ UTILITY FUNCTIONS ------------------
+def is_owner(user_id):
+    cursor.execute("SELECT * FROM owners WHERE user_id=%s", (user_id,))
+    return cursor.fetchone() is not None
+
+def add_owner(user_id, username):
+    cursor.execute(
+        "INSERT INTO owners (user_id, username) VALUES (%s, %s) ON CONFLICT (user_id) DO NOTHING",
+        (user_id, username)
+    )
+    conn.commit()
 
 # ------------------ /START ------------------
 @app.on_message(filters.command("start") & filters.private)
@@ -95,7 +113,17 @@ async def play(_, message):
         url, title = await download_audio(query)
         chat_id = message.chat.id
         vc.join_group_call(chat_id, AudioPiped(url))
-        await message.reply_text(f"❍ ᴛɪᴛʟє ➥ {title}\n❍ ʙʏ ➥ {message.from_user.first_name}\n❖ ϻᴧᴅє ʙʏ ➛ THEGAMERADEPT")
+        # Add to songs table
+        cursor.execute(
+            "INSERT INTO songs (chat_id, song_title, url, requested_by) VALUES (%s, %s, %s, %s)",
+            (chat_id, title, url, message.from_user.id)
+        )
+        conn.commit()
+        await message.reply_text(
+            f"❍ ᴛɪᴛʟє ➥ {title}\n"
+            f"❍ ʙʏ ➥ {message.from_user.first_name}\n"
+            "❖ ϻᴧᴅє ʙʏ ➛ THEGAMERADEPT"
+        )
     except Exception as e:
         await message.reply_text(f"Error: {e}")
 
@@ -104,7 +132,7 @@ async def stop(_, message):
     try:
         vc.leave_group_call(message.chat.id)
         await message.reply_text("Stopped and left VC.")
-    except Exception as e:
+    except Exception:
         await message.reply_text("No active VC to stop.")
 
 @app.on_message(filters.command("pause") & filters.group)
@@ -112,7 +140,7 @@ async def pause(_, message):
     try:
         vc.pause_stream(message.chat.id)
         await message.reply_text("Paused current song.")
-    except Exception as e:
+    except Exception:
         await message.reply_text("No active VC to pause.")
 
 @app.on_message(filters.command("resume") & filters.group)
@@ -120,10 +148,21 @@ async def resume(_, message):
     try:
         vc.resume_stream(message.chat.id)
         await message.reply_text("Resumed current song.")
-    except Exception as e:
+    except Exception:
         await message.reply_text("No active VC to resume.")
 
-# ------------------ ADMIN COMMANDS (placeholder) ------------------
+# ------------------ OWNER COMMANDS ------------------
+@app.on_message(filters.command("addev") & filters.user(OWNER_ID))
+async def addev(_, message):
+    if len(message.command) < 3:
+        await message.reply_text("Usage: /addev <user_id> <username>")
+        return
+    user_id = int(message.command[1])
+    username = message.command[2]
+    add_owner(user_id, username)
+    await message.reply_text(f"Added {username} as owner.")
+
+# ------------------ ADMIN PLACEHOLDER ------------------
 @app.on_message(filters.command(["kick","ban","unban","mute","unmute","pin","unpin"]) & filters.group)
 async def admin_cmd(_, message):
     await message.reply_text(f"Admin command '{message.command[0]}' received. (Implement admin checks)")
