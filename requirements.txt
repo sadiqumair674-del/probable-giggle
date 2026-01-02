@@ -3,4 +3,4 @@ tgcrypto==1.2.3
 pytgcalls==2.1.0
 yt-dlp>=2023.12.31
 qrcode==7.4
-pillow==9.0.1
+pillow==11.0.0
