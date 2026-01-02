@@ -2,9 +2,6 @@ services:
   - type: web
     name: probable-giggle
     env: python
-    pythonVersion: 3.11  # yaha 3.11 set kiya, Pillow issue fix ke liye
+    pythonVersion: 3.11
     buildCommand: pip install --upgrade pip && pip install -r requirements.txt
-    startCommand: python main.py  # ya tera bot start file
-    autoDeploy: true
-    repo: https://github.com/sadiqumair674-del/probable-giggle
-    branch: main
+    startCommand: python main.py
